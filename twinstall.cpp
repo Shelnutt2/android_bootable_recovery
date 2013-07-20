@@ -42,18 +42,28 @@
 #include "mtdutils/mtdutils.h"
 #include "verifier.h"
 #include "variables.h"
+#ifdef ENABLE_LOKI
+extern "C" {
+#include "compact_loki.h"
+}
+#endif
 #include "data.hpp"
 #include "partitions.hpp"
 #include "twrpDigest.hpp"
 #include "twrp-functions.hpp"
+
 extern "C" {
 	#include "gui/gui.h"
 }
+
 
 static int Run_Update_Binary(const char *path, ZipArchive *Zip, int* wipe_cache) {
 	const ZipEntry* binary_location = mzFindZipEntry(Zip, ASSUMED_UPDATE_BINARY_NAME);
 	string Temp_Binary = "/tmp/updater";
 	int binary_fd, ret_val, pipe_fd[2], status, zip_verify;
+#ifdef ENABLE_LOKI
+        int loki_enabled;
+#endif
 	char buffer[1024];
 	const char** args = (const char**)malloc(sizeof(char*) * 5);
 	FILE* child_data;
@@ -179,7 +189,16 @@ static int Run_Update_Binary(const char *path, ZipArchive *Zip, int* wipe_cache)
 		LOGERR("Error executing updater binary in zip '%s'\n", path);
 		return INSTALL_ERROR;
 	}
-
+#ifdef ENABLE_LOKI
+	DataManager::GetValue(TW_LOKI_SUPPORT_VAR, loki_enabled);
+    if(loki_enabled) {
+       gui_print("Checking if loki-fying is needed");
+       int result;
+       if(result = loki_check()) {
+           return result;
+       }
+    }
+#endif
 	return INSTALL_SUCCESS;
 }
 
