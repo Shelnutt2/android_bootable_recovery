@@ -43,7 +43,14 @@
 
 #include "adb_install.h"
 
+#ifdef ENABLE_LOKI
+#include "compact_loki.h"
+#endif
+
 int signature_check_enabled = 1;
+#ifdef ENABLE_LOKI
+int loki_support_enabled = 1;
+#endif
 int script_assert_enabled = 1;
 static const char *SDCARD_UPDATE_FILE = "/sdcard/update.zip";
 
@@ -101,6 +108,15 @@ toggle_signature_check()
     ui_print("Signature Check: %s\n", signature_check_enabled ? "Enabled" : "Disabled");
 }
 
+#ifdef ENABLE_LOKI
+void
+toggle_loki_support()
+{
+    loki_support_enabled = !loki_support_enabled;
+    ui_print("Loki Support: %s\n", loki_support_enabled ? "Enabled" : "Disabled");
+}
+#endif
+
 int install_zip(const char* packagefilepath)
 {
     ui_print("\n-- Installing: %s\n", packagefilepath);
@@ -114,6 +130,15 @@ int install_zip(const char* packagefilepath)
         ui_print("Installation aborted.\n");
         return 1;
     }
+#ifdef ENABLE_LOKI
+    if(loki_support_enabled) {
+       ui_print("Checking if loki-fying is needed");
+       int result;
+       if(result = loki_check()) {
+           return result;
+       }
+    }
+#endif
     ui_set_background(BACKGROUND_ICON_NONE);
     ui_print("\nInstall from sdcard complete.\n");
     return 0;
@@ -1337,6 +1362,9 @@ void show_advanced_menu()
                             "partition sdcard",
                             "partition external sdcard",
                             "partition internal sdcard",
+#ifdef ENABLE_LOKI
+                            "Toggle Loki Support",
+#endif
                             NULL
     };
 
@@ -1429,6 +1457,11 @@ void show_advanced_menu()
             case 9:
                 partition_sdcard("/emmc");
                 break;
+#ifdef ENABLE_LOKI
+            case 10:
+                toggle_loki_support();
+                break;
+#endif
         }
     }
 }
