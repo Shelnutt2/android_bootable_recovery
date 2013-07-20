@@ -1229,7 +1229,15 @@
                 <data variable="tw_signed_zip_verify" />
                 <image checked="checkbox_true" unchecked="checkbox_false" />
             </object>
-			
+
+            <object type="checkbox">
+                <placement x="%col1_x%" y="%row1_y%" />
+                <font resource="font" color="white" />
+                <text>Enable Loki Support?</text>
+                <data variable="tw_loki_support_enabled" />
+                <image checked="checkbox_true" unchecked="checkbox_false" />
+            </object>
+
 			<object type="checkbox">
                 <placement x="%col1_x%" y="160" />
                 <font resource="font" color="white" />

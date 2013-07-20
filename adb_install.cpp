@@ -80,7 +80,9 @@ maybe_restart_adbd() {
 
 int
 apply_from_adb(const char* install_file) {
-
+#ifdef ENABLE_LOKI
+        int loki_support_enabled;
+#endif
     stop_adbd();
     set_usb_driver(true);
 /*
@@ -116,5 +118,15 @@ apply_from_adb(const char* install_file) {
         }
         return -1;
     }
+#ifdef LOKI_ENABLED
+	DataManager::GetValue(TW_LOKI_SUPPORT_ENABLED_VAR, loki_support_enabled);
+        if(loki_support_enabled) {
+            gui_print("Checking if loki-fying is needed");
+            int result;
+            if(result = loki_check()) {
+               return result;
+           }
+       }
+#endif 
 	return 0;
 }

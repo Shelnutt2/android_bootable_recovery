@@ -58,6 +58,12 @@ LOCAL_SHARED_LIBRARIES :=
 LOCAL_STATIC_LIBRARIES += libcrecovery libguitwrp
 LOCAL_SHARED_LIBRARIES += libz libc libstlport libcutils libstdc++ libtar libblkid libminuitwrp libminadbd libmtdutils libminzip libaosprecovery
 
+ifeq ($(ENABLE_LOKI_RECOVERY),true)
+  LOCAL_CFLAGS += -DENABLE_LOKI
+  LOCAL_SRC_FILES += \
+    compact_loki.c
+endif
+
 ifneq ($(wildcard system/core/libsparse/Android.mk),)
 LOCAL_SHARED_LIBRARIES += libsparse
 endif
