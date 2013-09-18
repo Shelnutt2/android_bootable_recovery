@@ -19,7 +19,7 @@
 #include "compact_loki.h"
 #include "common.h"
 
-#define VERSION "1.6"
+#define VERSION "2.0"
 
 #define printme gui_print
 
@@ -45,11 +45,14 @@ struct boot_img_hdr
 	unsigned id[8];			/* timestamp / checksum / sha1 / etc */
 };
 
-struct loki_hdr
-{
+struct loki_hdr {
 	unsigned char magic[4];		/* 0x494b4f4c */
 	unsigned int recovery;		/* 0 = boot.img, 1 = recovery.img */
 	unsigned char build[128];	/* Build number */
+
+	unsigned int orig_kernel_size;
+	unsigned int orig_ramdisk_size;
+	unsigned int ramdisk_addr;
 };
 
 struct target {
@@ -103,6 +106,14 @@ struct target targets[] = {
 		.lg = 0,
 	},
 	{
+		.vendor = "DoCoMo",
+		.device = "LG Optimus G",
+		.build = "L01E20b",
+		.check_sigs = 0x88F10E48,
+		.hdr = 0x88F54418,
+		.lg = 1,
+	},
+	{
 		.vendor = "AT&T or HK",
 		.device = "LG Optimus G Pro",
 		.build = "E98010g or E98810b",
@@ -116,6 +127,14 @@ struct target targets[] = {
 		.build = "F240K10o, F240L10v, or F240S10w",
 		.check_sigs = 0x88f110b8,
 		.hdr = 0x88f54418,
+		.lg = 1,
+	},
+	{
+		.vendor = "KT, LGU, or SKT",
+		.device = "LG Optimus LTE 2",
+		.build = "F160K20g, F160L20f, F160LV20d, or F160S20f",
+		.check_sigs = 0x88f10864,
+		.hdr = 0x88f802b8,
 		.lg = 1,
 	},
 	{
@@ -142,59 +161,113 @@ struct target targets[] = {
 		.hdr = 0x88f702bc,
 		.lg = 1,
 	},
+	{
+		.vendor = "Verizon",
+		.device = "LG Spectrum 2",
+		.build = "VS93021B_05",
+		.check_sigs = 0x88f10c10,
+		.hdr = 0x88f84514,
+		.lg = 1,
+	},
+	{
+		.vendor = "Boost Mobile",
+		.device = "LG Optimus F7",
+		.build = "LG870ZV4_06",
+		.check_sigs = 0x88f11714,
+		.hdr = 0x88f842ac,
+		.lg = 1,
+	},
+	{
+		.vendor = "Virgin Mobile",
+		.device = "LG Optimus F3",
+		.build = "LS720ZV5",
+		.check_sigs = 0x88f108f0,
+		.hdr = 0x88f854f4,
+		.lg = 1,
+	},
+	{
+		.vendor = "AT&T",
+		.device = "LG G2",
+		.build = "D80010d",
+		.check_sigs = 0xf8132ac,
+		.hdr = 0xf906440,
+		.lg = 1,
+	},
+	{
+		.vendor = "Verizon",
+		.device = "LG G2",
+		.build = "VS98010b",
+		.check_sigs = 0xf8131f0,
+		.hdr = 0xf906440,
+		.lg = 1,
+	},
 };
 
 #define PATTERN1 "\xf0\xb5\x8f\xb0\x06\x46\xf0\xf7"
 #define PATTERN2 "\xf0\xb5\x8f\xb0\x07\x46\xf0\xf7"
 #define PATTERN3 "\x2d\xe9\xf0\x41\x86\xb0\xf1\xf7"
 #define PATTERN4 "\x2d\xe9\xf0\x4f\xad\xf5\xc6\x6d"
+#define PATTERN5 "\x2d\xe9\xf0\x4f\xad\xf5\x21\x7d"
 
 #define ABOOT_BASE_SAMSUNG 0x88dfffd8
 #define ABOOT_BASE_LG 0x88efffd8
+#define ABOOT_BASE_G2 0xf7fffd8
 
 unsigned char patch[] =
 "\xfe\xb5"
-"\x0b\x4d"
-"\xa8\x6a"
+"\x0d\x4d"
+"\xd5\xf8"
+"\x88\x04"
 "\xab\x68"
 "\x98\x42"
-"\x0e\xd0"
-"\xee\x69"
-"\x09\x4c"
-"\xef\x6a"
+"\x12\xd0"
+"\xd5\xf8"
+"\x90\x64"
+"\x0a\x4c"
+"\xd5\xf8"
+"\x8c\x74"
 "\x07\xf5\x80\x57"
 "\x0f\xce"
 "\x0f\xc4"
 "\x10\x3f"
 "\xfb\xdc"
-"\xa8\x6a"
+"\xd5\xf8"
+"\x88\x04"
 "\x04\x49"
-"\xea\x6a"
+"\xd5\xf8"
+"\x8c\x24"
 "\xa8\x60"
 "\x69\x61"
 "\x2a\x61"
 "\x00\x20"
 "\xfe\xbd"
-"\x00\x00"
-"\xff\xff\xff\xff"		/* Replace with header address */
-"\x00\x00\x20\x82";
+"\xff\xff\xff\xff"
+"\xee\xee\xee\xee";
 
-int loki_patch_shellcode(unsigned int addr)
+int loki_patch_shellcode(unsigned int header, unsigned int ramdisk)
 {
 
-	unsigned int i;
+	int i, found_header, found_ramdisk;
 	unsigned int *ptr;
+
+	found_header = 0;
+	found_ramdisk = 0;
 
 	for (i = 0; i < sizeof(patch); i++) {
 		ptr = (unsigned int *)&patch[i];
 		if (*ptr == 0xffffffff) {
-			*ptr = addr;
-			return 0;
+			*ptr = header;
+			found_header = 1;
 		}
-		else if (*ptr == addr) {
-			return 0;
+
+		if (*ptr == 0xeeeeeeee) {
+			*ptr = ramdisk;
+			found_ramdisk = 1;
 		}
 	}
+
+	if (found_header && found_ramdisk)
+		return 0;
 
 	return -1;
 }
@@ -247,7 +320,7 @@ int loki_patch(char *partition, char *partitionPath)
 	}
 
 	/* Verify the to-be-patched address matches the known code pattern */
-	aboot = mmap(0, (524288 + 0xfff) & ~0xfff, PROT_READ, MAP_PRIVATE, aboot_fd, 0);
+	aboot = mmap(0, (1048576 + 0xfff) & ~0xfff, PROT_READ, MAP_PRIVATE, aboot_fd, 0);
 	if (aboot == MAP_FAILED) {
 		printf("[-] Failed to mmap aboot.\n");
 		return 1;
@@ -255,7 +328,7 @@ int loki_patch(char *partition, char *partitionPath)
 
 	target = 0;
 
-	for (ptr = aboot; ptr < aboot + 524288 - 0x1000; ptr++) {
+	for (ptr = aboot; ptr < aboot + 1048576 - 0x1000; ptr++) {
 		if (!memcmp(ptr, PATTERN1, 8) ||
 			!memcmp(ptr, PATTERN2, 8) ||
 			!memcmp(ptr, PATTERN3, 8)) {
@@ -268,6 +341,13 @@ int loki_patch(char *partition, char *partitionPath)
 		if (!memcmp(ptr, PATTERN4, 8)) {
 
 			aboot_base = ABOOT_BASE_LG;
+			target = (unsigned long)ptr - (unsigned long)aboot + aboot_base;
+			break;
+		}
+
+		if (!memcmp(ptr, PATTERN5, 8)) {
+
+			aboot_base = ABOOT_BASE_G2;
 			target = (unsigned long)ptr - (unsigned long)aboot + aboot_base;
 			break;
 		}
@@ -289,11 +369,6 @@ int loki_patch(char *partition, char *partitionPath)
 
 	if (!tgt) {
 		printme("[-] Unsupported aboot image.\n");
-		return 1;
-	}
-
-	if (loki_patch_shellcode(tgt->hdr) < 0) {
-		printme("[-] Failed to patch shellcode.\n");
 		return 1;
 	}
 
@@ -337,10 +412,15 @@ int loki_patch(char *partition, char *partitionPath)
 	orig_kernel_size = hdr->kernel_size;
 	orig_ramdisk_size = hdr->ramdisk_size;
 
-	/* Store the original values in uses fields of the header */
-	hdr->dt_size = orig_kernel_size;
-	hdr->unused = orig_ramdisk_size;
-	hdr->second_addr = hdr->kernel_addr + ((hdr->kernel_size + page_mask) & ~page_mask);
+	/* Store the original values in unused fields of the header */
+	loki_hdr->orig_kernel_size = orig_kernel_size;
+	loki_hdr->orig_ramdisk_size = orig_ramdisk_size;
+	loki_hdr->ramdisk_addr = hdr->kernel_addr + ((hdr->kernel_size + page_mask) & ~page_mask);
+
+	if (loki_patch_shellcode(tgt->hdr, hdr->ramdisk_addr) < 0) {
+		printf("[-] Failed to patch shellcode.\n");
+		return 1;
+	}
 
 	/* Ramdisk must be aligned to a page boundary */
 	hdr->kernel_size = ((hdr->kernel_size + page_mask) & ~page_mask) + hdr->ramdisk_size;
@@ -548,26 +628,28 @@ int loki_flash(char *partition)
 
 	for (offs = 0; offs < 0x10; offs += 0x4) {
 
-		if (hdr->ramdisk_addr < ABOOT_BASE_LG)
+		if (hdr->ramdisk_addr < ABOOT_BASE_SAMSUNG)
+			patch = hdr->ramdisk_addr - ABOOT_BASE_G2 + aboot + offs;
+		else if (hdr->ramdisk_addr < ABOOT_BASE_LG)
 			patch = hdr->ramdisk_addr - ABOOT_BASE_SAMSUNG + aboot + offs;
 		else
 			patch = hdr->ramdisk_addr - ABOOT_BASE_LG + aboot + offs;
 
 		if (patch < aboot || patch > aboot + 0x40000 - 8) {
-			printme("[-] Invalid .lok file.\n");
+			printf("[-] Invalid .lok file.\n");
 			return 1;
 		}
 
 		if (!memcmp(patch, PATTERN1, 8) ||
 			!memcmp(patch, PATTERN2, 8) ||
 			!memcmp(patch, PATTERN3, 8) ||
-			!memcmp(patch, PATTERN4, 8)) {
+			!memcmp(patch, PATTERN4, 8) ||
+			!memcmp(patch, PATTERN5, 8)) {
 
 			match = 1;
 			break;
 		}
 	}
-
 	if (!match) {
 		printme("[-] Loki aboot version does not match device.\n");
 		return 1;
