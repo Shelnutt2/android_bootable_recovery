@@ -12,7 +12,6 @@ LOCAL_SRC_FILES := \
     ui.c \
     mounts.c \
     extendedcommands.c \
-    compact_loki.c \
     nandroid.c \
     ../../system/core/toolbox/reboot.c \
     ../../system/core/toolbox/dynarray.c \
@@ -57,6 +56,8 @@ endif
 
 ifeq ($(ENABLE_LOKI_RECOVERY),true)
   LOCAL_CFLAGS += -DENABLE_LOKI
+  LOCAL_SRC_FILES += \
+    compact_loki.c
 endif
 
 BOARD_RECOVERY_CHAR_WIDTH := $(shell echo $(BOARD_USE_CUSTOM_RECOVERY_FONT) | cut -d _  -f 2 | cut -d . -f 1 | cut -d x -f 1)
