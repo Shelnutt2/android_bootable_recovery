@@ -604,8 +604,14 @@ int loki_check_partition(char *partition)
 
 	/* Verify this is a Loki image */
 	if (memcmp(loki_hdr->magic, "LOKI", 4)) {
+           if(!memcmp(hdr->magic,"ANDROID!",8)){
 		printme("%s needs lokifying.\n", partition);
 		return 1;
+           }
+           else{
+                printme("%s is blank, so skipping.\n",partition);
+                return 0;
+           }
 	}
         else {
                return 0;
